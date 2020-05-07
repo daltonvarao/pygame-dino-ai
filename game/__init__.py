@@ -12,14 +12,18 @@ from game.lib.constants import Constants
 class Game:
     def __init__(self):
         pygame.display.set_caption('Dino')
+        pygame.font.init()
 
         self.frame_number = 0
+        self.score = 0
         self.display = pygame.display.set_mode(Constants.SIZE)
         self.tileset = pygame.image.load(Constants.TILESET_DIR)
 
         self.clock = pygame.time.Clock()
+        self.font = pygame.font.Font(Constants.FONTS_DIR, 16)
         self.running = True
         self.velocity = 7
+        self.allow_pterodactyl = False
 
         self.dino = Dino(self.tileset)
         self.dino_group = pygame.sprite.Group(self.dino)
@@ -46,6 +50,9 @@ class Game:
 
                 if event.key in [K_SPACE, K_UP]:
                     self.dino.jumping = True
+                    if not self.running:
+                        self.running = True
+                        self.__init__()
 
             if event.type == KEYUP:
                 if event.key == K_DOWN:
@@ -56,6 +63,12 @@ class Game:
 
 
     def handle_sprites_events(self):
+        self.score_font = self.font.render(f"{self.score:05d}", True, Constants.PRIMARY_COLOR)
+        self.display.blit(self.score_font, (510, 15))
+
+        self.cloud_group.draw(self.display)
+        self.cloud_group.update()
+
         self.scenario_group.draw(self.display)
         self.scenario_group.update()
 
@@ -70,9 +83,6 @@ class Game:
             self.scenario_group.add(Scenario(self.tileset, last_scenario.rect.right - 2, self.velocity))
             self.scenario_group.remove(first_scenario)
 
-        self.cloud_group.draw(self.display)
-        self.cloud_group.update()
-
         for cloud in self.cloud_group.sprites():
             if cloud.rect.right == 300:
                 self.cloud_group.add(Cloud(self.tileset))
@@ -84,24 +94,34 @@ class Game:
 
         if self.frame_number % 30 == 0:
             last_obstacle = self.obstacle_group.sprites()[-1]
-            self.obstacle_group.add(Obstacle(self.tileset, last_obstacle.rect.right, self.velocity))
+            self.obstacle_group.add(Obstacle(self.tileset, last_obstacle.rect.right, self.velocity, self.allow_pterodactyl))
 
         for obstacle in self.obstacle_group.sprites():
             if obstacle.rect.right <= 0:
                 self.obstacle_group.remove(obstacle)
 
+            if pygame.sprite.collide_mask(self.dino, obstacle):
+                self.running = False
+
+        if self.score > 100:
+            self.allow_pterodactyl = True
+
     def run(self):
         pygame.init()
 
-        while self.running:
-            self.clock.tick(60)
-            self.display.fill(Constants.WHITE_COLOR)
-
+        while True:
             self.handle_input_events()
-            self.handle_sprites_events()
 
-            pygame.display.flip()
+            if self.running:
+                self.display.fill(Constants.WHITE_COLOR)
+                self.handle_sprites_events()
 
-            self.frame_number += 1
+                if self.frame_number % 8 == 0:
+                    self.score += 1
+                
+                self.clock.tick(60)
+                self.frame_number += 1
+                pygame.display.flip()
+                print(self.score)
 
         pygame.quit()

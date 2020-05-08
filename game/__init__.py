@@ -20,10 +20,12 @@ class Game:
         self.tileset = pygame.image.load(Constants.TILESET_DIR)
 
         self.clock = pygame.time.Clock()
-        self.font = pygame.font.Font(Constants.FONTS_DIR, 16)
-        self.running = True
+        self.score_font = pygame.font.Font(Constants.FONTS_DIR, 12)
+        self.game_over_font = pygame.font.Font(Constants.FONTS_DIR, 34)
+        self.over = False
         self.velocity = 7
         self.allow_pterodactyl = False
+        self.fps = 60
 
         self.dino = Dino(self.tileset)
         self.dino_group = pygame.sprite.Group(self.dino)
@@ -38,11 +40,11 @@ class Game:
         self.obstacle = Obstacle(self.tileset, 600, self.velocity)
         self.obstacle_group = pygame.sprite.Group(self.obstacle)
 
-
     def handle_input_events(self):
         for event in pygame.event.get():
             if event.type == QUIT:
-                self.running = False
+                self.over = True
+                pygame.quit()
 
             if event.type == KEYDOWN:
                 if event.key == K_DOWN:
@@ -50,8 +52,8 @@ class Game:
 
                 if event.key in [K_SPACE, K_UP]:
                     self.dino.jumping = True
-                    if not self.running:
-                        self.running = True
+                    if self.over:
+                        self.over = False
                         self.__init__()
 
             if event.type == KEYUP:
@@ -63,8 +65,8 @@ class Game:
 
 
     def handle_sprites_events(self):
-        self.score_font = self.font.render(f"{self.score:05d}", True, Constants.PRIMARY_COLOR)
-        self.display.blit(self.score_font, (510, 15))
+        self.score_text = self.score_font.render(f"{self.score:05d}", True, Constants.PRIMARY_COLOR)
+        self.display.blit(self.score_text, (530, 10))
 
         self.cloud_group.draw(self.display)
         self.cloud_group.update()
@@ -92,7 +94,7 @@ class Game:
         self.obstacle_group.draw(self.display)
         self.obstacle_group.update()
 
-        if self.frame_number % 30 == 0:
+        if self.frame_number % 60 == 0:
             last_obstacle = self.obstacle_group.sprites()[-1]
             self.obstacle_group.add(Obstacle(self.tileset, last_obstacle.rect.right, self.velocity, self.allow_pterodactyl))
 
@@ -101,27 +103,39 @@ class Game:
                 self.obstacle_group.remove(obstacle)
 
             if pygame.sprite.collide_mask(self.dino, obstacle):
-                self.running = False
+                self.over = 0 #True
 
-        if self.score > 100:
+        if self.score > 150:
             self.allow_pterodactyl = True
+
+        self.fps = 60 + self.score//40
+        self.score = self.frame_number // 8
 
     def run(self):
         pygame.init()
 
         while True:
             self.handle_input_events()
+            self.clock.tick(self.fps)
 
-            if self.running:
+            if not self.over:
                 self.display.fill(Constants.WHITE_COLOR)
                 self.handle_sprites_events()
-
-                if self.frame_number % 8 == 0:
-                    self.score += 1
                 
-                self.clock.tick(60)
                 self.frame_number += 1
-                pygame.display.flip()
-                print(self.score)
+
+                print(
+                    self.obstacle_group.sprites()[0].rect.left,
+                    self.obstacle_group.sprites()[0].rect.width,
+                    self.obstacle_group.sprites()[0].rect.height
+                )
+
+                print(self.obstacle_group.sprites().__len__())
+            else:
+                game_over_text = self.game_over_font.render('GAME OVER', True, Constants.PRIMARY_COLOR)
+                game_over_rect = game_over_text.get_rect(center=(Constants.WIDTH/2, Constants.HEIGHT/2))
+                self.display.blit(game_over_text, game_over_rect)
+
+            pygame.display.flip()
 
         pygame.quit()

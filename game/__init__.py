@@ -2,12 +2,25 @@ import os
 import pygame
 import random
 from pygame.locals import *
+from pprint import pprint as print
 
 from game.lib.dino import Dino
 from game.lib.scenario import Scenario
 from game.lib.cloud import Cloud
 from game.lib.obstacle import Obstacle
 from game.lib.constants import Constants
+from game.lib.population import Population
+from game.lib.ga2 import GeneticAlgorithm
+
+
+tileset = pygame.image.load(Constants.TILESET_DIR)
+allow_save=False
+
+genetic_algorithm = GeneticAlgorithm(Constants.CR, Constants.MR, Constants.BESTS_NUM)
+population = Population(
+    *(Dino(tileset, Constants.NET_LAYERS) for _ in range(Constants.POP_SIZE)), 
+    allow_save=allow_save
+)
 
 class Game:
     def __init__(self):
@@ -22,13 +35,10 @@ class Game:
         self.clock = pygame.time.Clock()
         self.score_font = pygame.font.Font(Constants.FONTS_DIR, 12)
         self.game_over_font = pygame.font.Font(Constants.FONTS_DIR, 34)
-        self.over = False
         self.velocity = 7
         self.allow_pterodactyl = False
         self.fps = 60
-
-        self.dino = Dino(self.tileset)
-        self.dino_group = pygame.sprite.Group(self.dino)
+        self.obstacles = 0
 
         self.scenario_group = pygame.sprite.Group(
             Scenario(self.tileset, 0, self.velocity),
@@ -43,26 +53,8 @@ class Game:
     def handle_input_events(self):
         for event in pygame.event.get():
             if event.type == QUIT:
-                self.over = True
+                population.save_weights()
                 pygame.quit()
-
-            if event.type == KEYDOWN:
-                if event.key == K_DOWN:
-                    self.dino.turn_down()
-
-                if event.key in [K_SPACE, K_UP]:
-                    self.dino.jumping = True
-                    if self.over:
-                        self.over = False
-                        self.__init__()
-
-            if event.type == KEYUP:
-                if event.key == K_DOWN:
-                    self.dino.turn_standing()
-
-                if event.key in [K_SPACE, K_UP]:
-                    self.dino.jumping = False
-
 
     def handle_sprites_events(self):
         first_scenario = self.scenario_group.sprites()[0]
@@ -78,9 +70,6 @@ class Game:
             if cloud.rect.right < 0:
                 self.cloud_group.remove(cloud)
 
-        self.obstacle_group.draw(self.display)
-        self.obstacle_group.update()
-
         if len(self.obstacle_group.sprites()) < 3:
             last_obstacle = self.obstacle_group.sprites()[-1]
             self.obstacle_group.add(Obstacle(self.tileset, last_obstacle.rect.right, self.velocity, self.allow_pterodactyl))
@@ -88,10 +77,7 @@ class Game:
         for obstacle in self.obstacle_group.sprites():
             if obstacle.rect.right <= 0:
                 self.obstacle_group.remove(obstacle)
-
-            if pygame.sprite.collide_mask(self.dino, obstacle):
-                self.dino.kill()
-                self.over = True
+                self.obstacles += 1
 
         if self.score > 150:
             self.allow_pterodactyl = True
@@ -99,46 +85,52 @@ class Game:
         self.fps = 60 + self.score//40
         self.score = self.frame_number // 8
 
+        for dino in population:
+            if pygame.sprite.spritecollideany(dino, self.obstacle_group):
+                dino.kill()
+
+        population.activate(self.obstacle_group.sprites(), self.fps)
+
+    def render_updates(self):
+        self.scenario_group.draw(self.display)
+        self.scenario_group.update()
+
+        self.obstacle_group.draw(self.display)
+        self.obstacle_group.update()
+
         self.score_text = self.score_font.render(f"{self.score:05d}", True, Constants.PRIMARY_COLOR)
         self.display.blit(self.score_text, (530, 10))
 
         self.cloud_group.draw(self.display)
         self.cloud_group.update()
 
-        self.scenario_group.draw(self.display)
-        self.scenario_group.update()
-
-        self.dino_group.draw(self.display)
-        self.dino_group.update()
-        self.dino.move()
+        population.draw(self.display)
+        population.update()
+        population.set_score(self.obstacles)
 
     def run(self):
         pygame.init()
 
-        while True:
-            self.handle_input_events()
-            self.clock.tick(self.fps)
+        try:
+            while True:
+                self.handle_input_events()
+                self.clock.tick(self.fps)
 
-            if not self.over:
-                self.display.fill(Constants.WHITE_COLOR)
-                self.handle_sprites_events()
-                
+                if not population.over():
+                    self.display.fill(Constants.WHITE_COLOR)
 
-                print(
-                    self.obstacle_group.sprites()[0].rect.left,
-                    self.obstacle_group.sprites()[0].rect.width,
-                    self.obstacle_group.sprites()[0].rect.height
-                )
+                    self.handle_sprites_events()
+                    self.render_updates()
 
-                print(self.obstacle_group.sprites().__len__())
+                    self.frame_number += 1
+                else:
+                    evaluated_population = population.avaliate()
+                    new_population = genetic_algorithm.evolve(evaluated_population)
+                    population.set_population(new_population)
+                    self.__init__()
 
-                self.frame_number += 1
+                pygame.display.flip()
 
-            else:
-                game_over_text = self.game_over_font.render('GAME OVER', True, Constants.PRIMARY_COLOR)
-                game_over_rect = game_over_text.get_rect(center=(Constants.WIDTH/2, Constants.HEIGHT/2))
-                self.display.blit(game_over_text, game_over_rect)
-
-            pygame.display.flip()
-
-        pygame.quit()
+        except KeyboardInterrupt:
+            population.save_weights()
+            pygame.quit()

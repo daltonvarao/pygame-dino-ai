@@ -14,13 +14,19 @@ from game.lib.ga2 import GeneticAlgorithm
 
 
 tileset = pygame.image.load(Constants.TILESET_DIR)
-allow_save=False
+allow_save = False
 
 genetic_algorithm = GeneticAlgorithm(Constants.CR, Constants.MR, Constants.BESTS_NUM)
+
 population = Population(
-    *(Dino(tileset, Constants.NET_LAYERS) for _ in range(Constants.POP_SIZE)), 
-    allow_save=allow_save
+    individual=Dino,
+    net_layers=Constants.NET_LAYERS,
+    size=Constants.POP_SIZE, 
+    tileset=tileset,
+    allow_save=allow_save,
 )
+
+# population.load_weights('09-05-2020-20-57-56.npy')
 
 class Game:
     def __init__(self):
@@ -36,7 +42,7 @@ class Game:
         self.score_font = pygame.font.Font(Constants.FONTS_DIR, 12)
         self.game_over_font = pygame.font.Font(Constants.FONTS_DIR, 34)
         self.velocity = 7
-        self.allow_pterodactyl = False
+        self.allow_pterodactyl = 1
         self.fps = 60
         self.obstacles = 0
 
@@ -53,7 +59,7 @@ class Game:
     def handle_input_events(self):
         for event in pygame.event.get():
             if event.type == QUIT:
-                population.save_weights()
+                population.save_weights(filename='ninja.npy')
                 pygame.quit()
 
     def handle_sprites_events(self):
@@ -132,5 +138,5 @@ class Game:
                 pygame.display.flip()
 
         except KeyboardInterrupt:
-            population.save_weights()
+            population.save_weights(filename='ninja.npy')
             pygame.quit()

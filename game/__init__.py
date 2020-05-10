@@ -24,10 +24,10 @@ class Game:
         self.game_over_font = pygame.font.Font(Constants.FONTS_DIR, 34)
         self.over = False
         self.velocity = 7
-        self.allow_pterodactyl = False
+        self.allow_pterodactyl = 1
         self.fps = 60
 
-        self.dino = Dino(self.tileset)
+        self.dino = Dino(self.tileset, Constants.NET_LAYERS)
         self.dino_group = pygame.sprite.Group(self.dino)
 
         self.scenario_group = pygame.sprite.Group(
